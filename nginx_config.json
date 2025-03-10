@@ -1,0 +1,39 @@
+{
+  "service": "模板测试业务",
+  "nginx_log_format": {
+    "is_json": false,
+    "exclude": {
+      "static_extensions": [
+      ],
+      "prefix_filters": [
+        "/contentimg/"
+      ]
+    },
+    "log_separator": "|",
+    "field_indexes": {
+      "ip": 4,
+      "timestamp": 0,
+      "request_time": 2,
+      "method": 6,
+      "url": 8,
+      "status": 1,
+      "bytes": 3,
+      "referrer": 11,
+      "user_agent": 9,
+      "x_forwarded_for": 13
+    }
+  },
+  "time_delay_unit": "s",
+  "base_dir": "/data02/nginx_cms",
+  "module_urls": {
+    "发现首页": ["/api1","/content/static"],
+    "首页": ["/api2","/ccopapi"],
+    "登录": ["/test/api4","/testapi5"]
+  },
+  "sender": "sender@163.com",
+  "smtp_server": "smtp.163.com",
+  "recipient": {
+    "收件人1": "111@163.com",
+    "收件人2": "222@139.com"
+  }
+}
